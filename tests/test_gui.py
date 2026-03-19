@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QApplication
 
 from scx_gui.discovery import ProgramInfo
@@ -212,6 +213,37 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(item.background().color().name(), "#274135")
             self.assertTrue(item.font().bold())
         finally:
+            window.close()
+
+    def test_help_button_enables_when_stale_task_thread_object_is_not_running(self) -> None:
+        window = ScxGuiWindow(auto_refresh=False)
+        try:
+            window.bundle = window.bundle.__class__(
+                schedulers=[
+                    ProgramInfo(
+                        name="scx_demo",
+                        path=Path("/usr/bin/scx_demo"),
+                        kind="scheduler",
+                        summary="Demo scheduler",
+                        version="",
+                        help_text="Demo help text",
+                        options=[],
+                        help_returncode=0,
+                    )
+                ],
+                utilities=[],
+                docs=[],
+            )
+            window.current_config.scheduler = "scx_demo"
+            window._task_thread = QThread()
+
+            window._populate_scheduler_list()
+            window._refresh_editor_action_buttons()
+
+            self.assertIsNotNone(window.current_program)
+            self.assertTrue(window.help_button.isEnabled())
+        finally:
+            window._task_thread = None
             window.close()
 
     @patch("scx_gui.gui.can_install_scx_package", return_value=True)

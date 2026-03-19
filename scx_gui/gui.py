@@ -604,6 +604,13 @@ class ScxGuiWindow(QMainWindow):
     def _clear_task_state(self) -> None:
         self._task_thread = None
         self._task_worker = None
+        self._refresh_install_button()
+        self._refresh_editor_action_buttons()
+        self._refresh_service_action_buttons()
+        self._refresh_apply_scheduler_button()
+
+    def _task_is_busy(self) -> bool:
+        return self._task_thread is not None and self._task_thread.isRunning()
 
     def _set_busy_state(self, busy: bool, note: str) -> None:
         widgets = [
@@ -1162,10 +1169,10 @@ class ScxGuiWindow(QMainWindow):
             return
         should_show = self._has_loaded_snapshot and not self._scx_available() and can_install_scx_package()
         self.install_button.setVisible(should_show)
-        self.install_button.setEnabled(should_show and self._task_thread is None)
+        self.install_button.setEnabled(should_show and not self._task_is_busy())
 
     def _refresh_editor_action_buttons(self) -> None:
-        task_idle = self._task_thread is None
+        task_idle = not self._task_is_busy()
         has_program = self.current_program is not None
         has_command = bool(self.current_scheduler_name or self.current_config.scheduler)
         dirty = has_program and self._has_unsaved_changes()
@@ -1181,7 +1188,7 @@ class ScxGuiWindow(QMainWindow):
         self.show_preview_button.setEnabled(task_idle and has_command)
 
     def _refresh_service_action_buttons(self) -> None:
-        task_idle = self._task_thread is None
+        task_idle = not self._task_is_busy()
         service_action = self._service_toggle_action_name()
         self.service_toggle_button.setText("Stop Service" if service_action == "stop" else "Start Service")
         if service_action == "stop":
@@ -1223,7 +1230,7 @@ class ScxGuiWindow(QMainWindow):
         if not needs_apply:
             tooltip = "The selected scheduler is already running with the saved settings."
         self.apply_scheduler_button.setToolTip(tooltip)
-        self.apply_scheduler_button.setEnabled(needs_apply and self._task_thread is None)
+        self.apply_scheduler_button.setEnabled(needs_apply and not self._task_is_busy())
 
     def _install_scx(self) -> None:
         if not can_install_scx_package():
