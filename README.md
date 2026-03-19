@@ -24,7 +24,7 @@ through `zypper` with `pkexec`.
 - Provides a pop-out quick-add browser built from the selected scheduler's `--help`
 - Keeps raw help and config-file preview behind buttons so the main window stays simple
 - Saves scheduler config back to `/etc/default/scx` using `pkexec`
-- Starts, stops, restarts, enables, and disables `scx.service`
+- Uses simple toggle buttons for start/stop and boot enable/disable, while keeping restart and reset-failed controls available
 - Lets you reset a latched failed state for `scx.service`
 - Shows current service, boot, and `sched_ext` state with large status indicators
 

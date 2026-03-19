@@ -34,7 +34,24 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(window.boot_state_value_label.text(), "Disabled")
             self.assertEqual(window.sched_ext_value_label.text(), "Disabled")
             self.assertEqual(window.service_status_label.text(), "scx.service is failed.")
+            self.assertEqual(window.service_toggle_button.text(), "Start Service")
+            self.assertEqual(window.boot_toggle_button.text(), "Enable At Boot")
             self.assertIn("Reset Failed State", window.reset_failed_button.text())
+        finally:
+            window.close()
+
+    def test_service_toggle_buttons_flip_with_running_and_enabled_state(self) -> None:
+        window = ScxGuiWindow(auto_refresh=False)
+        try:
+            window.service_state = ServiceState(
+                active_state="active",
+                unit_file_state="enabled",
+                sched_ext_state="enabled",
+            )
+            window._refresh_service_box()
+
+            self.assertEqual(window.service_toggle_button.text(), "Stop Service")
+            self.assertEqual(window.boot_toggle_button.text(), "Disable At Boot")
         finally:
             window.close()
 

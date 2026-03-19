@@ -363,25 +363,19 @@ class ScxGuiWindow(QMainWindow):
         buttons.setHorizontalSpacing(8)
         buttons.setVerticalSpacing(8)
 
-        self.start_button = QPushButton("Start Service")
-        self.start_button.clicked.connect(lambda: self._run_service_action("start"))
+        self.service_toggle_button = QPushButton("Start Service")
+        self.service_toggle_button.clicked.connect(self._toggle_service)
         self.restart_button = QPushButton("Restart Service")
         self.restart_button.clicked.connect(lambda: self._run_service_action("restart"))
-        self.stop_button = QPushButton("Stop Service")
-        self.stop_button.clicked.connect(lambda: self._run_service_action("stop"))
-        self.enable_button = QPushButton("Enable At Boot")
-        self.enable_button.clicked.connect(lambda: self._run_service_action("enable"))
-        self.disable_button = QPushButton("Disable At Boot")
-        self.disable_button.clicked.connect(lambda: self._run_service_action("disable"))
+        self.boot_toggle_button = QPushButton("Enable At Boot")
+        self.boot_toggle_button.clicked.connect(self._toggle_boot_state)
         self.reset_failed_button = QPushButton("Reset Failed State")
         self.reset_failed_button.clicked.connect(lambda: self._run_service_action("reset-failed"))
 
-        buttons.addWidget(self.start_button, 0, 0)
+        buttons.addWidget(self.service_toggle_button, 0, 0)
         buttons.addWidget(self.restart_button, 0, 1)
-        buttons.addWidget(self.stop_button, 0, 2)
-        buttons.addWidget(self.enable_button, 1, 0)
-        buttons.addWidget(self.disable_button, 1, 1)
-        buttons.addWidget(self.reset_failed_button, 1, 2)
+        buttons.addWidget(self.reset_failed_button, 0, 2)
+        buttons.addWidget(self.boot_toggle_button, 1, 0)
         layout.addLayout(buttons)
 
         details_row = QHBoxLayout()
@@ -610,11 +604,9 @@ class ScxGuiWindow(QMainWindow):
             self.apply_scheduler_button,
             self.add_option_button,
             self.copy_option_button,
-            self.start_button,
+            self.service_toggle_button,
             self.restart_button,
-            self.stop_button,
-            self.enable_button,
-            self.disable_button,
+            self.boot_toggle_button,
             self.reset_failed_button,
             self.service_details_button,
         ]
@@ -938,6 +930,12 @@ class ScxGuiWindow(QMainWindow):
             on_complete,
         )
 
+    def _toggle_service(self) -> None:
+        self._run_service_action(self._service_toggle_action_name())
+
+    def _toggle_boot_state(self) -> None:
+        self._run_service_action(self._boot_toggle_action_name())
+
     def _confirm_save_before_action(self, action: str) -> str:
         box = QMessageBox(self)
         box.setIcon(QMessageBox.Question)
@@ -1086,6 +1084,7 @@ class ScxGuiWindow(QMainWindow):
         ops_text = ", ".join(self.service_state.sched_ext_ops) if self.service_state.sched_ext_ops else "none"
         hint_parts.append(f"Active sched_ext ops: {ops_text}.")
         self.service_hint_label.setText(" ".join(hint_parts))
+        self._refresh_service_action_buttons()
         self._refresh_apply_scheduler_button()
 
     def _copy_command(self) -> None:
@@ -1099,6 +1098,12 @@ class ScxGuiWindow(QMainWindow):
         name = self.service_state.active_scheduler.strip()
         return name or None
 
+    def _service_toggle_action_name(self) -> str:
+        return "stop" if self.service_state.active_state == "active" else "start"
+
+    def _boot_toggle_action_name(self) -> str:
+        return "disable" if self.service_state.unit_file_state == "enabled" else "enable"
+
     def _scx_available(self) -> bool:
         return bool(self.bundle.schedulers)
 
@@ -1108,6 +1113,21 @@ class ScxGuiWindow(QMainWindow):
         should_show = self._has_loaded_snapshot and not self._scx_available() and can_install_scx_package()
         self.install_button.setVisible(should_show)
         self.install_button.setEnabled(should_show and self._task_thread is None)
+
+    def _refresh_service_action_buttons(self) -> None:
+        service_action = self._service_toggle_action_name()
+        self.service_toggle_button.setText("Stop Service" if service_action == "stop" else "Start Service")
+        if service_action == "stop":
+            self.service_toggle_button.setToolTip("Stop scx.service.")
+        else:
+            self.service_toggle_button.setToolTip("Start scx.service using the saved scheduler settings.")
+
+        boot_action = self._boot_toggle_action_name()
+        self.boot_toggle_button.setText("Disable At Boot" if boot_action == "disable" else "Enable At Boot")
+        if boot_action == "disable":
+            self.boot_toggle_button.setToolTip("Stop scx.service from starting automatically at boot.")
+        else:
+            self.boot_toggle_button.setToolTip("Start scx.service automatically at boot.")
 
     def _refresh_apply_scheduler_button(self) -> None:
         if self.apply_scheduler_button is None:
