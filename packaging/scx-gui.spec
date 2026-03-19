@@ -1,5 +1,5 @@
 Name:           scx-gui
-Version:        0.2
+Version:        0.3
 Release:        0
 Summary:        PySide6 GUI frontend for the installed openSUSE scx package
 License:        NOASSERTION
