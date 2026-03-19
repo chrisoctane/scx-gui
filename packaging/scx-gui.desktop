@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=SCX GUI
+Comment=GUI frontend for the installed scx package
+Exec=scx-gui
+Terminal=false
+Categories=System;Settings;
+Keywords=scx;scheduler;sched_ext;
