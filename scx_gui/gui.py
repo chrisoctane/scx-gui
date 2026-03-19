@@ -113,6 +113,7 @@ class ScxGuiWindow(QMainWindow):
         self.copy_option_button: QPushButton | None = None
         self.open_quick_add_button: QPushButton | None = None
         self.install_button: QPushButton | None = None
+        self.apply_scheduler_button: QPushButton | None = None
 
         self.setWindowTitle("SCX GUI")
         self.resize(1220, 860)
@@ -276,9 +277,12 @@ class ScxGuiWindow(QMainWindow):
         self.reset_flags_button.clicked.connect(self._reset_flags_to_saved)
         self.open_quick_add_button = QPushButton("Open Quick Add")
         self.open_quick_add_button.clicked.connect(self._open_quick_add_dialog)
+        self.apply_scheduler_button = QPushButton("Apply Scheduler")
+        self.apply_scheduler_button.clicked.connect(self._apply_scheduler)
         row.addWidget(self.save_button)
         row.addWidget(self.reset_flags_button)
         row.addWidget(self.open_quick_add_button)
+        row.addWidget(self.apply_scheduler_button)
         row.addStretch(1)
         layout.addLayout(row)
         return group
@@ -603,6 +607,7 @@ class ScxGuiWindow(QMainWindow):
             self.show_preview_button,
             self.help_button,
             self.open_quick_add_button,
+            self.apply_scheduler_button,
             self.add_option_button,
             self.copy_option_button,
             self.start_button,
@@ -629,6 +634,8 @@ class ScxGuiWindow(QMainWindow):
             self.busy_label.hide()
             self.busy_label.clear()
             self.statusBar().clearMessage()
+            self._refresh_install_button()
+            self._refresh_apply_scheduler_button()
 
     def _populate_scheduler_list(self) -> None:
         previous_name = self.current_scheduler_name or self.current_config.scheduler
@@ -836,6 +843,7 @@ class ScxGuiWindow(QMainWindow):
         flags_raw = self._current_flags_text()
         self.command_preview_label.setText(f"<b>Saved command:</b> {self._build_command_preview(scheduler, flags_raw)}")
         self._refresh_dirty_label()
+        self._refresh_apply_scheduler_button()
 
     def _build_command_preview(self, scheduler: str | None, flags_raw: str) -> str:
         if not scheduler:
@@ -870,7 +878,12 @@ class ScxGuiWindow(QMainWindow):
         self.flags_edit.blockSignals(False)
         self._update_preview()
 
-    def _save_config(self, after_success: Callable[[], None] | None = None) -> None:
+    def _save_config(
+        self,
+        after_success: Callable[[], None] | None = None,
+        *,
+        show_success_dialog: bool = True,
+    ) -> None:
         scheduler = self.current_scheduler_name
         if not scheduler:
             self._show_error("Select a scheduler first.")
@@ -894,9 +907,10 @@ class ScxGuiWindow(QMainWindow):
             self._update_preview()
             self._refresh_summary()
             self._refresh_service_box()
-            self._show_result("Config Saved", result)
+            if show_success_dialog:
+                self._show_result("Config Saved", result)
             if after_success is not None:
-                after_success()
+                QTimer.singleShot(0, after_success)
 
         self._start_task("Saving config...", lambda: write_scx_config(config), on_saved)
 
@@ -945,6 +959,59 @@ class ScxGuiWindow(QMainWindow):
         flags_raw = self._current_flags_text()
         return scheduler != self.current_config.scheduler or flags_raw != self.current_config.flags_raw
 
+    def _apply_scheduler(self) -> None:
+        if not self.current_scheduler_name:
+            self._show_error("Select a scheduler first.")
+            return
+        if self.service_state.override_active:
+            choice = QMessageBox.question(
+                self,
+                "Service Overrides Active",
+                "scx.service override values are active, so applying the saved scheduler may not change the live one until those overrides are removed. Continue anyway?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No,
+            )
+            if choice != QMessageBox.Yes:
+                return
+        if self._has_unsaved_changes():
+            self._save_config(after_success=self._continue_apply_scheduler, show_success_dialog=False)
+            return
+        self._continue_apply_scheduler()
+
+    def _continue_apply_scheduler(self) -> None:
+        if self.service_state.active_state == "failed":
+            self._start_task(
+                "Resetting failed state...",
+                lambda: run_service_action("reset-failed"),
+                self._handle_apply_reset_complete,
+            )
+            return
+        self._run_apply_service_step(self._apply_service_action_name())
+
+    def _handle_apply_reset_complete(self, result: object) -> None:
+        assert isinstance(result, CommandResult)
+        if not result.ok:
+            self._show_result("Apply Scheduler", result, error=True)
+            QTimer.singleShot(0, self._refresh_all)
+            return
+        QTimer.singleShot(0, lambda: self._run_apply_service_step("start"))
+
+    def _apply_service_action_name(self) -> str:
+        return "restart" if self.service_state.active_state == "active" else "start"
+
+    def _run_apply_service_step(self, action: str) -> None:
+        label = "Applying scheduler..."
+
+        def on_complete(result: object) -> None:
+            assert isinstance(result, CommandResult)
+            if result.ok:
+                self._show_result("Apply Scheduler", result)
+            else:
+                self._show_result("Apply Scheduler", result, error=True)
+            QTimer.singleShot(0, self._refresh_all)
+
+        self._start_task(label, lambda: run_service_action(action), on_complete)
+
     def _refresh_summary(self) -> None:
         if not self._has_loaded_snapshot:
             self.summary_label.setText("Refresh to load installed SCX state.")
@@ -979,6 +1046,7 @@ class ScxGuiWindow(QMainWindow):
             detail_text = "Refresh after installing scx to discover available schedulers."
         self.summary_detail_label.setText(detail_text)
         self._refresh_install_button()
+        self._refresh_apply_scheduler_button()
 
     def _refresh_service_box(self) -> None:
         service_value, service_meta, service_color = self._service_card_state()
@@ -1018,6 +1086,7 @@ class ScxGuiWindow(QMainWindow):
         ops_text = ", ".join(self.service_state.sched_ext_ops) if self.service_state.sched_ext_ops else "none"
         hint_parts.append(f"Active sched_ext ops: {ops_text}.")
         self.service_hint_label.setText(" ".join(hint_parts))
+        self._refresh_apply_scheduler_button()
 
     def _copy_command(self) -> None:
         command = self._build_command_preview(self.current_scheduler_name, self._current_flags_text())
@@ -1039,6 +1108,31 @@ class ScxGuiWindow(QMainWindow):
         should_show = self._has_loaded_snapshot and not self._scx_available() and can_install_scx_package()
         self.install_button.setVisible(should_show)
         self.install_button.setEnabled(should_show and self._task_thread is None)
+
+    def _refresh_apply_scheduler_button(self) -> None:
+        if self.apply_scheduler_button is None:
+            return
+        if self.current_scheduler_name is None or not self._scx_available():
+            self.apply_scheduler_button.setEnabled(False)
+            self.apply_scheduler_button.setToolTip("Select a scheduler first.")
+            return
+        active_name = self._active_scheduler_name()
+        needs_apply = (
+            self._has_unsaved_changes()
+            or self.service_state.active_state != "active"
+            or self.current_scheduler_name != active_name
+        )
+        action = self._apply_service_action_name()
+        if self.service_state.active_state == "failed":
+            tooltip = "Save the selected scheduler, reset the failed service state, and start scx.service."
+        elif action == "restart":
+            tooltip = "Save the selected scheduler and restart scx.service."
+        else:
+            tooltip = "Save the selected scheduler and start scx.service."
+        if not needs_apply:
+            tooltip = "The selected scheduler is already running with the saved settings."
+        self.apply_scheduler_button.setToolTip(tooltip)
+        self.apply_scheduler_button.setEnabled(needs_apply and self._task_thread is None)
 
     def _install_scx(self) -> None:
         if not can_install_scx_package():

@@ -20,6 +20,7 @@ through `zypper` with `pkexec`.
 - Lists installed schedulers dynamically
 - Offers to install the openSUSE `scx` package if it is missing
 - Lets you edit the saved `SCX_FLAGS` value directly
+- Provides a one-click Apply Scheduler action that saves and starts or restarts `scx.service`
 - Provides a pop-out quick-add browser built from the selected scheduler's `--help`
 - Keeps raw help and config-file preview behind buttons so the main window stays simple
 - Saves scheduler config back to `/etc/default/scx` using `pkexec`

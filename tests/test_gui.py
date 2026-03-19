@@ -141,6 +141,70 @@ class GuiTests(unittest.TestCase):
         finally:
             window.close()
 
+    def test_apply_scheduler_button_disables_when_selected_scheduler_is_already_live(self) -> None:
+        window = ScxGuiWindow(auto_refresh=False)
+        try:
+            schedulers = [
+                ProgramInfo(
+                    name="scx_demo",
+                    path=Path("/usr/bin/scx_demo"),
+                    kind="scheduler",
+                    summary="Demo scheduler",
+                    version="",
+                    help_text="",
+                    options=[],
+                    help_returncode=0,
+                )
+            ]
+            window.bundle = window.bundle.__class__(schedulers=schedulers, utilities=[], docs=[])
+            window.current_config.scheduler = "scx_demo"
+            window.service_state = ServiceState(active_state="active", active_scheduler="scx_demo")
+
+            window._populate_scheduler_list()
+
+            assert window.apply_scheduler_button is not None
+            self.assertFalse(window.apply_scheduler_button.isEnabled())
+        finally:
+            window.close()
+
+    def test_apply_scheduler_button_enables_for_different_selected_scheduler(self) -> None:
+        window = ScxGuiWindow(auto_refresh=False)
+        try:
+            schedulers = [
+                ProgramInfo(
+                    name="scx_demo",
+                    path=Path("/usr/bin/scx_demo"),
+                    kind="scheduler",
+                    summary="Demo scheduler",
+                    version="",
+                    help_text="",
+                    options=[],
+                    help_returncode=0,
+                ),
+                ProgramInfo(
+                    name="scx_other",
+                    path=Path("/usr/bin/scx_other"),
+                    kind="scheduler",
+                    summary="Other scheduler",
+                    version="",
+                    help_text="",
+                    options=[],
+                    help_returncode=0,
+                ),
+            ]
+            window.bundle = window.bundle.__class__(schedulers=schedulers, utilities=[], docs=[])
+            window.current_config.scheduler = "scx_demo"
+            window.service_state = ServiceState(active_state="active", active_scheduler="scx_demo")
+
+            window._populate_scheduler_list()
+            window.scheduler_list.setCurrentRow(1)
+            self.app.processEvents()
+
+            assert window.apply_scheduler_button is not None
+            self.assertTrue(window.apply_scheduler_button.isEnabled())
+        finally:
+            window.close()
+
 
 if __name__ == "__main__":
     unittest.main()
