@@ -9,6 +9,10 @@ keep remembering file paths and flag names.
 If `scx` is missing on openSUSE, the app can also install the package for you
 through `zypper` with `pkexec`.
 
+## Screenshot
+
+![SCX GUI screenshot](scx-gui_screenshot1.png)
+
 ## What it wraps
 
 - Installed schedulers in `/usr/bin/scx_*`
