@@ -36,6 +36,8 @@ class GuiTests(unittest.TestCase):
             self.assertEqual(window.service_status_label.text(), "scx.service is failed.")
             self.assertEqual(window.service_toggle_button.text(), "Start Service")
             self.assertEqual(window.boot_toggle_button.text(), "Enable At Boot")
+            self.assertNotIn("#274135", window.service_state_card.styleSheet())
+            self.assertNotIn("#274135", window.boot_state_card.styleSheet())
             self.assertIn("Reset Failed State", window.reset_failed_button.text())
         finally:
             window.close()
@@ -52,6 +54,9 @@ class GuiTests(unittest.TestCase):
 
             self.assertEqual(window.service_toggle_button.text(), "Stop Service")
             self.assertEqual(window.boot_toggle_button.text(), "Disable At Boot")
+            self.assertIn("#274135", window.service_state_card.styleSheet())
+            self.assertIn("#274135", window.boot_state_card.styleSheet())
+            self.assertIn("#274135", window.sched_ext_card.styleSheet())
         finally:
             window.close()
 
@@ -68,6 +73,72 @@ class GuiTests(unittest.TestCase):
 
             self.assertIn("Command completed without extra output.", text)
             self.assertNotIn("(no output)", text)
+        finally:
+            window.close()
+
+    def test_config_buttons_dim_when_selected_state_matches_saved(self) -> None:
+        window = ScxGuiWindow(auto_refresh=False)
+        try:
+            schedulers = [
+                ProgramInfo(
+                    name="scx_demo",
+                    path=Path("/usr/bin/scx_demo"),
+                    kind="scheduler",
+                    summary="Demo scheduler",
+                    version="",
+                    help_text="Demo help text",
+                    options=[],
+                    help_returncode=0,
+                )
+            ]
+            window.bundle = window.bundle.__class__(schedulers=schedulers, utilities=[], docs=[])
+            window.current_config.scheduler = "scx_demo"
+            window.current_config.flags_raw = ""
+
+            window._populate_scheduler_list()
+
+            self.assertFalse(window.save_button.isEnabled())
+            self.assertFalse(window.reset_flags_button.isEnabled())
+            assert window.clear_flags_button is not None
+            self.assertFalse(window.clear_flags_button.isEnabled())
+        finally:
+            window.close()
+
+    def test_clear_button_empties_flags_and_returns_to_saved_state(self) -> None:
+        window = ScxGuiWindow(auto_refresh=False)
+        try:
+            schedulers = [
+                ProgramInfo(
+                    name="scx_demo",
+                    path=Path("/usr/bin/scx_demo"),
+                    kind="scheduler",
+                    summary="Demo scheduler",
+                    version="",
+                    help_text="Demo help text",
+                    options=[],
+                    help_returncode=0,
+                )
+            ]
+            window.bundle = window.bundle.__class__(schedulers=schedulers, utilities=[], docs=[])
+            window.current_config.scheduler = "scx_demo"
+            window.current_config.flags_raw = ""
+
+            window._populate_scheduler_list()
+            window.flags_edit.setPlainText("--mode performance")
+            self.app.processEvents()
+
+            assert window.clear_flags_button is not None
+            self.assertTrue(window.save_button.isEnabled())
+            self.assertTrue(window.reset_flags_button.isEnabled())
+            self.assertTrue(window.clear_flags_button.isEnabled())
+
+            window.clear_flags_button.click()
+            self.app.processEvents()
+
+            self.assertEqual(window.flags_edit.toPlainText(), "")
+            self.assertFalse(window.save_button.isEnabled())
+            self.assertFalse(window.reset_flags_button.isEnabled())
+            self.assertFalse(window.clear_flags_button.isEnabled())
         finally:
             window.close()
 

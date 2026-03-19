@@ -27,6 +27,7 @@ through `zypper` with `pkexec`.
 - Uses simple toggle buttons for start/stop and boot enable/disable, while keeping restart and reset-failed controls available
 - Lets you reset a latched failed state for `scx.service`
 - Shows current service, boot, and `sched_ext` state with large status indicators
+- Installs a desktop launcher when installed from the RPM
 
 ## Run
 
@@ -49,6 +50,11 @@ QT_QPA_PLATFORM=offscreen python -m scx_gui --smoke-test
 The smoke test now skips live scheduler/service discovery on purpose. It checks
 that the Qt UI can be constructed headlessly without depending on a fully
 configured `scx` runtime on the host.
+
+## Desktop Launcher
+
+The packaged RPM installs `scx-gui.desktop` into `/usr/share/applications/`,
+so it shows up in KDE and GNOME application launchers after install.
 
 ## Build RPM
 

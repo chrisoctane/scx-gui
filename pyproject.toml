@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scx-gui"
-version = "0.1.0"
+version = "0.2"
 description = "A PySide6 GUI frontend for the installed openSUSE scx package"
 readme = "README.md"
 requires-python = ">=3.11"

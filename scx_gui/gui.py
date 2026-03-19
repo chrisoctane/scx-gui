@@ -114,6 +114,7 @@ class ScxGuiWindow(QMainWindow):
         self.open_quick_add_button: QPushButton | None = None
         self.install_button: QPushButton | None = None
         self.apply_scheduler_button: QPushButton | None = None
+        self.clear_flags_button: QPushButton | None = None
 
         self.setWindowTitle("SCX GUI")
         self.resize(1220, 860)
@@ -275,12 +276,15 @@ class ScxGuiWindow(QMainWindow):
         self.save_button.clicked.connect(self._save_config)
         self.reset_flags_button = QPushButton("Reset To Saved")
         self.reset_flags_button.clicked.connect(self._reset_flags_to_saved)
+        self.clear_flags_button = QPushButton("Clear")
+        self.clear_flags_button.clicked.connect(self._clear_flags)
         self.open_quick_add_button = QPushButton("Open Quick Add")
         self.open_quick_add_button.clicked.connect(self._open_quick_add_dialog)
         self.apply_scheduler_button = QPushButton("Apply Scheduler")
         self.apply_scheduler_button.clicked.connect(self._apply_scheduler)
         row.addWidget(self.save_button)
         row.addWidget(self.reset_flags_button)
+        row.addWidget(self.clear_flags_button)
         row.addWidget(self.open_quick_add_button)
         row.addWidget(self.apply_scheduler_button)
         row.addStretch(1)
@@ -491,12 +495,22 @@ class ScxGuiWindow(QMainWindow):
             QPushButton:hover {
                 background: #474d55;
             }
+            QPushButton:disabled {
+                background: #23262b;
+                border: 1px solid #31353b;
+                color: #7e848b;
+            }
             QPushButton#secondaryButton {
                 background: #292d32;
                 border: 1px solid #474c53;
             }
             QPushButton#secondaryButton:hover {
                 background: #33383e;
+            }
+            QPushButton#secondaryButton:disabled {
+                background: #1e2125;
+                border: 1px solid #2f343a;
+                color: #7e848b;
             }
             QGroupBox {
                 border: 1px solid #3a3f45;
@@ -597,6 +611,7 @@ class ScxGuiWindow(QMainWindow):
             self.install_button,
             self.save_button,
             self.reset_flags_button,
+            self.clear_flags_button,
             self.copy_command_button,
             self.show_preview_button,
             self.help_button,
@@ -627,6 +642,8 @@ class ScxGuiWindow(QMainWindow):
             self.busy_label.clear()
             self.statusBar().clearMessage()
             self._refresh_install_button()
+            self._refresh_editor_action_buttons()
+            self._refresh_service_action_buttons()
             self._refresh_apply_scheduler_button()
 
     def _populate_scheduler_list(self) -> None:
@@ -835,6 +852,7 @@ class ScxGuiWindow(QMainWindow):
         flags_raw = self._current_flags_text()
         self.command_preview_label.setText(f"<b>Saved command:</b> {self._build_command_preview(scheduler, flags_raw)}")
         self._refresh_dirty_label()
+        self._refresh_editor_action_buttons()
         self._refresh_apply_scheduler_button()
 
     def _build_command_preview(self, scheduler: str | None, flags_raw: str) -> str:
@@ -861,12 +879,23 @@ class ScxGuiWindow(QMainWindow):
     def _reset_flags_to_saved(self) -> None:
         if self.current_program is None:
             return
+        if self.current_config.scheduler and self.current_program.name != self.current_config.scheduler:
+            self._select_scheduler(self.current_config.scheduler)
+            return
         raw_flags = self.scheduler_drafts.get(
             self.current_program.name,
             self.current_config.flags_raw if self.current_program.name == self.current_config.scheduler else "",
         )
         self.flags_edit.blockSignals(True)
         self.flags_edit.setPlainText(raw_flags)
+        self.flags_edit.blockSignals(False)
+        self._update_preview()
+
+    def _clear_flags(self) -> None:
+        if self.current_program is None:
+            return
+        self.flags_edit.blockSignals(True)
+        self.flags_edit.setPlainText("")
         self.flags_edit.blockSignals(False)
         self._update_preview()
 
@@ -1051,9 +1080,30 @@ class ScxGuiWindow(QMainWindow):
         boot_value, boot_meta, boot_color = self._boot_card_state()
         sched_ext_value, sched_ext_meta, sched_ext_color = self._sched_ext_card_state()
 
-        self._set_status_card(self.service_state_value_label, self.service_state_meta_label, service_value, service_meta, service_color)
-        self._set_status_card(self.boot_state_value_label, self.boot_state_meta_label, boot_value, boot_meta, boot_color)
-        self._set_status_card(self.sched_ext_value_label, self.sched_ext_meta_label, sched_ext_value, sched_ext_meta, sched_ext_color)
+        self._set_status_card(
+            self.service_state_card,
+            self.service_state_value_label,
+            self.service_state_meta_label,
+            service_value,
+            service_meta,
+            service_color,
+        )
+        self._set_status_card(
+            self.boot_state_card,
+            self.boot_state_value_label,
+            self.boot_state_meta_label,
+            boot_value,
+            boot_meta,
+            boot_color,
+        )
+        self._set_status_card(
+            self.sched_ext_card,
+            self.sched_ext_value_label,
+            self.sched_ext_meta_label,
+            sched_ext_value,
+            sched_ext_meta,
+            sched_ext_color,
+        )
 
         if self.service_state.active_state == "active":
             self.service_status_label.setText("scx.service is running.")
@@ -1114,13 +1164,31 @@ class ScxGuiWindow(QMainWindow):
         self.install_button.setVisible(should_show)
         self.install_button.setEnabled(should_show and self._task_thread is None)
 
+    def _refresh_editor_action_buttons(self) -> None:
+        task_idle = self._task_thread is None
+        has_program = self.current_program is not None
+        has_command = bool(self.current_scheduler_name or self.current_config.scheduler)
+        dirty = has_program and self._has_unsaved_changes()
+        has_flags = bool(self._current_flags_text())
+
+        self.save_button.setEnabled(task_idle and dirty)
+        self.reset_flags_button.setEnabled(task_idle and dirty)
+        if self.clear_flags_button is not None:
+            self.clear_flags_button.setEnabled(task_idle and has_program and has_flags)
+        self.help_button.setEnabled(task_idle and has_program)
+        self.open_quick_add_button.setEnabled(task_idle and has_program)
+        self.copy_command_button.setEnabled(task_idle and has_command)
+        self.show_preview_button.setEnabled(task_idle and has_command)
+
     def _refresh_service_action_buttons(self) -> None:
+        task_idle = self._task_thread is None
         service_action = self._service_toggle_action_name()
         self.service_toggle_button.setText("Stop Service" if service_action == "stop" else "Start Service")
         if service_action == "stop":
             self.service_toggle_button.setToolTip("Stop scx.service.")
         else:
             self.service_toggle_button.setToolTip("Start scx.service using the saved scheduler settings.")
+        self.service_toggle_button.setEnabled(task_idle and self._scx_available())
 
         boot_action = self._boot_toggle_action_name()
         self.boot_toggle_button.setText("Disable At Boot" if boot_action == "disable" else "Enable At Boot")
@@ -1128,6 +1196,9 @@ class ScxGuiWindow(QMainWindow):
             self.boot_toggle_button.setToolTip("Stop scx.service from starting automatically at boot.")
         else:
             self.boot_toggle_button.setToolTip("Start scx.service automatically at boot.")
+        self.boot_toggle_button.setEnabled(task_idle and self._scx_available())
+        self.restart_button.setEnabled(task_idle and self._scx_available())
+        self.reset_failed_button.setEnabled(task_idle and self.service_state.active_state == "failed")
 
     def _refresh_apply_scheduler_button(self) -> None:
         if self.apply_scheduler_button is None:
@@ -1259,7 +1330,7 @@ class ScxGuiWindow(QMainWindow):
         if state == "active":
             value = "Running"
             meta = f"PID {self.service_state.exec_main_pid or '0'} is active."
-            color = "#9fd8b5"
+            color = "#e4ffe9"
         elif state == "failed":
             value = "Failed"
             meta = "Reset the failed state, then try starting again."
@@ -1285,7 +1356,7 @@ class ScxGuiWindow(QMainWindow):
     def _boot_card_state(self) -> tuple[str, str, str]:
         state = self.service_state.unit_file_state
         if state == "enabled":
-            return "Enabled", "Starts automatically at boot.", "#9fd8b5"
+            return "Enabled", "Starts automatically at boot.", "#e4ffe9"
         if state == "disabled":
             return "Disabled", "Starts only when you launch it yourself.", "#d4d7dc"
         if state == "static":
@@ -1300,15 +1371,29 @@ class ScxGuiWindow(QMainWindow):
             meta = "The kernel sched_ext hook is active."
             if self.service_state.sched_ext_ops:
                 meta = f"Active ops: {', '.join(self.service_state.sched_ext_ops)}."
-            return "Enabled", meta, "#9fd8b5"
+            return "Enabled", meta, "#e4ffe9"
         if state == "disabled":
             return "Disabled", "No sched_ext scheduler is active.", "#d4d7dc"
         return state.replace("-", " ").title() or "Unknown", "Kernel sched_ext state could not be read.", "#ffd58a"
 
-    def _set_status_card(self, value_label: QLabel, meta_label: QLabel, value: str, meta: str, color: str) -> None:
+    def _set_status_card(
+        self,
+        card: QFrame,
+        value_label: QLabel,
+        meta_label: QLabel,
+        value: str,
+        meta: str,
+        color: str,
+    ) -> None:
         value_label.setText(value)
         value_label.setStyleSheet(f"color: {color}; font-size: 27px; font-weight: 700;")
         meta_label.setText(meta)
+        if color == "#e4ffe9":
+            card.setStyleSheet("background: #274135; border: 1px solid #3d6654; border-radius: 10px;")
+            meta_label.setStyleSheet("color: #d5f2db;")
+        else:
+            card.setStyleSheet("background: #1a1c20; border: 1px solid #34383d; border-radius: 10px;")
+            meta_label.setStyleSheet("color: #c7ccd2;")
 
     def _program_by_name(self, name: str | None) -> ProgramInfo | None:
         if not name:
