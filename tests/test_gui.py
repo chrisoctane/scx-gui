@@ -80,7 +80,6 @@ class GuiTests(unittest.TestCase):
                 ],
                 help_returncode=0,
             )
-            window._refresh_quick_add_summary()
             window._open_quick_add_dialog()
             self.app.processEvents()
 
@@ -88,7 +87,7 @@ class GuiTests(unittest.TestCase):
             self.assertIsNotNone(window.option_list)
             assert window.option_list is not None
             self.assertEqual(window.option_list.count(), 1)
-            self.assertIn("1 options available", window.quick_add_summary_label.text())
+            self.assertEqual(window.quick_add_dialog.windowTitle(), "scx_demo Quick Add")
         finally:
             if window.quick_add_dialog is not None:
                 window.quick_add_dialog.close()

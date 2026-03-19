@@ -112,7 +112,6 @@ class ScxGuiWindow(QMainWindow):
         self.add_option_button: QPushButton | None = None
         self.copy_option_button: QPushButton | None = None
         self.open_quick_add_button: QPushButton | None = None
-        self.quick_add_summary_label: QLabel | None = None
         self.install_button: QPushButton | None = None
 
         self.setWindowTitle("SCX GUI")
@@ -245,7 +244,6 @@ class ScxGuiWindow(QMainWindow):
         layout.addWidget(self.dirty_label)
 
         layout.addWidget(self._build_flags_group())
-        layout.addWidget(self._build_quick_add_group())
         layout.addWidget(self._build_preview_group())
         layout.addWidget(self._build_service_group())
         layout.addStretch(1)
@@ -276,31 +274,10 @@ class ScxGuiWindow(QMainWindow):
         self.save_button.clicked.connect(self._save_config)
         self.reset_flags_button = QPushButton("Reset To Saved")
         self.reset_flags_button.clicked.connect(self._reset_flags_to_saved)
-        row.addWidget(self.save_button)
-        row.addWidget(self.reset_flags_button)
-        row.addStretch(1)
-        layout.addLayout(row)
-        return group
-
-    def _build_quick_add_group(self) -> QWidget:
-        group = QGroupBox("Quick Add")
-        layout = QVBoxLayout(group)
-
-        intro = QLabel(
-            "Open the selected scheduler's option browser in a separate window so you can see the full list without squeezing the main page."
-        )
-        intro.setWordWrap(True)
-        layout.addWidget(intro)
-
-        self.quick_add_summary_label = QLabel("Select a scheduler to browse its available flags.")
-        self.quick_add_summary_label.setWordWrap(True)
-        self.quick_add_summary_label.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.quick_add_summary_label.setStyleSheet("color: #d6d9de;")
-        layout.addWidget(self.quick_add_summary_label)
-
-        row = QHBoxLayout()
         self.open_quick_add_button = QPushButton("Open Quick Add")
         self.open_quick_add_button.clicked.connect(self._open_quick_add_dialog)
+        row.addWidget(self.save_button)
+        row.addWidget(self.reset_flags_button)
         row.addWidget(self.open_quick_add_button)
         row.addStretch(1)
         layout.addLayout(row)
@@ -688,7 +665,6 @@ class ScxGuiWindow(QMainWindow):
             self.flags_edit.blockSignals(True)
             self.flags_edit.setPlainText("")
             self.flags_edit.blockSignals(False)
-            self._refresh_quick_add_summary()
             self._populate_option_list()
             self._update_preview()
             return
@@ -726,7 +702,6 @@ class ScxGuiWindow(QMainWindow):
         self.flags_edit.blockSignals(False)
         if self.quick_add_dialog is not None:
             self.quick_add_dialog.setWindowTitle(f"{program.name} Quick Add")
-        self._refresh_quick_add_summary()
         self._populate_option_list()
         self._refresh_service_box()
         self._update_preview()
@@ -1089,23 +1064,6 @@ class ScxGuiWindow(QMainWindow):
                 self._show_result("Install SCX", result, error=True)
 
         self._start_task("Installing SCX...", install_scx_package, on_complete)
-
-    def _refresh_quick_add_summary(self) -> None:
-        if self.quick_add_summary_label is None:
-            return
-        program = self.current_program
-        if program is None:
-            self.quick_add_summary_label.setText("Select a scheduler to browse its available flags.")
-            return
-        option_count = len([option for option in program.options if option.flag_name not in IGNORED_FORM_FLAGS])
-        if option_count == 0:
-            self.quick_add_summary_label.setText(
-                f"{program.name} did not expose parsed options from --help on this host. Use Show Help for the raw text."
-            )
-            return
-        self.quick_add_summary_label.setText(
-            f"{option_count} options available for {program.name}. Open Quick Add to browse them in a separate window."
-        )
 
     def _open_quick_add_dialog(self) -> None:
         program = self.current_program
