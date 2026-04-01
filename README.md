@@ -1,4 +1,4 @@
-# scx-gui
+# scx-gui (sched_ext)
 
 `scx-gui` is a standalone PySide6 frontend for the `scx` package installed on
 your system. It does not ship its own schedulers or replace how `scx` works.
